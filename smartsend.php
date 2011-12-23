@@ -45,7 +45,7 @@ if ($session->getUser()){
 		$post_param_values["CANCELURL"] = $_POST["url"]."?cancelurl=1";
 		$post_param_values["NOTIFYURL"] = $_POST["url"]."?notifyurl=1";
 		
-		$post_url = "http://api.dev.smartsend.com.au/";
+		$post_url = "http://api.smartsend.com.au/";
 		
 		$bookingCount=0;
 			foreach($items as $item){
