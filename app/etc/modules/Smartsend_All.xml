@@ -1,0 +1,11 @@
+<config>
+  <modules>
+    <Smartsend_Australia>
+      <active>true</active>
+      <codePool>community</codePool>
+	  <depends>
+                <Mage_Shipping />
+      </depends>
+    </Smartsend_Australia>
+  </modules>
+</config>
