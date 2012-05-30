@@ -1,0 +1,158 @@
+<?xml version="1.0"?>
+<!--
+/**
+ * Codisto Smartsend Extension
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Open Software License (OSL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/osl-3.0.php
+ * If you did not receive a copy of the license and are unable to
+ * obtain it through the world-wide-web, please send an email
+ * to license@magentocommerce.com so we can send you a copy immediately.
+ *
+ * @category   Codisto
+ * @package    Codisto_Smartsend
+ * @author     Codisto Pty Ltd
+ * @copyright  Copyright (c) 2012 Codisto Pty Ltd (http://www.codisto.com.au)
+ * @license    http://opensource.org/licenses/osl-3.0.php  Open Software License (OSL 3.0)
+ */
+-->
+<config>
+    <modules>
+        <Codisto_Smartsend>
+            <version>0.1.0</version>
+            <depends>
+                <Mage_Shipping />
+                <Mage_Payment />
+                <Mage_Checkout />
+            </depends>
+        </Codisto_Smartsend>
+    </modules>
+    <global>
+        <models>
+            <smartsend>
+                <class>Codisto_Smartsend_Model</class>
+                <resourceModel>smartsend_mysql4</resourceModel>
+            </smartsend>
+            <smartsend_mysql4>
+                <class>Codisto_Smartsend_Model_Mysql4</class>
+                <entities>
+                    <smartsend>
+                        <table>smartsend_smartsend</table>
+                    </smartsend>
+                </entities>
+            </smartsend_mysql4>
+        </models>
+        <blocks>
+            <smartsend>
+                <class>Codisto_Smartsend_Block</class>
+            </smartsend>
+        </blocks>
+        <helpers>
+            <smartsend>
+                <class>Codisto_Smartsend_Helper</class>
+            </smartsend>
+        </helpers>
+        <resources>
+            <smartsend_setup>
+                <setup>
+                    <module>Codisto_Smartsend</module>
+                </setup>
+                <connection>
+                    <use>core_setup</use>
+                </connection>
+            </smartsend_setup>
+            <smartsend_write>
+                <connection>
+                    <use>core_write</use>
+                </connection>
+            </smartsend_write>
+            <smartsend_read>
+                <connection>
+                    <use>core_read</use>
+                </connection>
+            </smartsend_read>
+        </resources>
+        <sales>
+            <shipping>
+                <carriers>
+                    <smartsend>
+                        <class>Codisto_Smartsend_Model_Shipping_Carrier_Smartsend</class>
+                    </smartsend>
+                </carriers>
+            </shipping>
+        </sales>
+        <events>
+            <sales_order_shipment_save_after>
+                <observers>
+                    <codisto_smartsend_shipment_save>
+                        <type>singleton</type>
+                        <class>smartsend/shipping_carrier_smartsend</class>
+                        <method>sendConsignment</method>
+                    </codisto_smartsend_shipment_save>
+                </observers>
+            </sales_order_shipment_save_after>
+        </events>
+    </global>
+    <frontend>
+        <routers>
+            <smartsend>
+                <use>standard</use>
+                <args>
+                    <module>Codisto_Smartsend</module>
+                    <frontName>smartsend</frontName>
+                </args>
+            </smartsend>
+        </routers>
+        <layout>
+            <updates>
+                <smartsend module="Codisto_Smartsend">
+                    <file>codisto_smartsend.xml</file>
+                </smartsend>
+            </updates>
+        </layout>
+    </frontend>
+    <default>
+        <carriers>
+            <smartsend>
+                <active>0</active>
+                <model>smartsend/shipping_carrier_smartsend</model>
+                <title>Smartsend</title>
+                <name></name>
+                <weight_units>1000</weight_units>
+                <country_code>AU</country_code>
+                <sallowsspecific>1</sallowspecific>
+                <specificcountry>AU</specificcountry>
+                <specificerrmsg>Smartsend is only available when shipping within Australia. Please contact us if you are having shipping issues.</specificerrmsg>
+                <receipted_delivery>false</receipted_delivery>
+            </smartsend>
+        </carriers>
+    </default>
+    <adminhtml>
+        <acl>
+            <resources>
+                <all>
+                    <title>Allow Everything</title>
+                </all>
+                <admin>
+                    <children>
+                        <system>
+                            <children>
+                                <config>
+                                    <children>
+                                        <codisto_smartsend>
+                                            <title>Smartsend</title>
+                                        </codisto_smartsend>
+                                    </children>
+                                </config>
+                            </children>
+                        </system>
+                    </children>
+                </admin>
+            </resources>
+        </acl>
+    </adminhtml>
+</config>
