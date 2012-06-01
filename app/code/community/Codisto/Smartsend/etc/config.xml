@@ -24,11 +24,6 @@
     <modules>
         <Codisto_Smartsend>
             <version>0.1.0</version>
-            <depends>
-                <Mage_Shipping />
-                <Mage_Payment />
-                <Mage_Checkout />
-            </depends>
         </Codisto_Smartsend>
     </modules>
     <global>
@@ -41,16 +36,11 @@
                 <class>Codisto_Smartsend_Model_Mysql4</class>
                 <entities>
                     <smartsend>
-                        <table>smartsend_smartsend</table>
+                        <table>smartsend</table>
                     </smartsend>
                 </entities>
             </smartsend_mysql4>
         </models>
-        <blocks>
-            <smartsend>
-                <class>Codisto_Smartsend_Block</class>
-            </smartsend>
-        </blocks>
         <helpers>
             <smartsend>
                 <class>Codisto_Smartsend_Helper</class>
@@ -85,6 +75,7 @@
                 </carriers>
             </shipping>
         </sales>
+<!--
         <events>
             <sales_order_shipment_save_after>
                 <observers>
@@ -96,7 +87,9 @@
                 </observers>
             </sales_order_shipment_save_after>
         </events>
+-->
     </global>
+    <!--
     <frontend>
         <routers>
             <smartsend>
@@ -115,44 +108,18 @@
             </updates>
         </layout>
     </frontend>
+    -->
     <default>
         <carriers>
             <smartsend>
-                <active>0</active>
-                <model>smartsend/shipping_carrier_smartsend</model>
+                <active>1</active>
+                <model>smartsend/Shipping_Carrier_Smartsend</model>
                 <title>Smartsend</title>
                 <name></name>
                 <weight_units>1000</weight_units>
-                <country_code>AU</country_code>
-                <sallowsspecific>1</sallowspecific>
-                <specificcountry>AU</specificcountry>
                 <specificerrmsg>Smartsend is only available when shipping within Australia. Please contact us if you are having shipping issues.</specificerrmsg>
                 <receipted_delivery>false</receipted_delivery>
             </smartsend>
         </carriers>
     </default>
-    <adminhtml>
-        <acl>
-            <resources>
-                <all>
-                    <title>Allow Everything</title>
-                </all>
-                <admin>
-                    <children>
-                        <system>
-                            <children>
-                                <config>
-                                    <children>
-                                        <codisto_smartsend>
-                                            <title>Smartsend</title>
-                                        </codisto_smartsend>
-                                    </children>
-                                </config>
-                            </children>
-                        </system>
-                    </children>
-                </admin>
-            </resources>
-        </acl>
-    </adminhtml>
 </config>

@@ -25,6 +25,9 @@
         <Codisto_Smartsend>
             <active>true</active>
             <codePool>community</codePool>
+            <depends>
+                <Mage_Shipping/>
+            </depends>
         </Codisto_Smartsend>
     </modules>
 </config>

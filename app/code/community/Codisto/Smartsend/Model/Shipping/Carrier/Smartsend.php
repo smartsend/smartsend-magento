@@ -1,23 +1,52 @@
 <?php
-class Codisto_Smartsend_Model_Carrier_Smartsend
+Mage::Log("Loaded" . __FILE__);
+
+class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     extends Mage_Shipping_Model_Carrier_Abstract
     implements Mage_Shipping_Model_Carrier_Interface
 {
     protected $_code = 'smartsend';
+    
+    const AUSTRALIA_COUNTRY_CODE = 'AU';
 
     public function collectRates(Mage_Shipping_Model_Rate_Request $request)
     {
+        Mage::Log("Called " . __METHOD__);
         // Check if this method is active
         if (!$this->getConfigFlag('active'))
             return false;
 
+        // Check if this is applicable, only allowing shipping from Australia.
+        $origCountry = Mage::getStoreConfig('shipping/origin/country_id', $this->getStore());
+        if ($origCountry != self::AUSTRALIA_COUNTRY_CODE)
+            return false;
+        
+        $frompostcode = Mage::getStoreConfig('shipping/origin/postcode', $this->getStore());
+        $topostcode = $request->getDestPostcode();
+        
+        if ($request->getDestCountryId())
+            $destcountry = $request->getDestCountryId();
+        else
+            $destcountry = self::AUSTRALIA_COUNTRY_CODE;
+            
+        // Smartsend only ships within Australia
+        if ($destcountry != self::AUSTRALIA_COUNTRY_CODE)
+            return false;
+
+        // TODO: Call out to freight gateway with package items to box pack and get quote results
+        
         $result = Mage::getModel('shipping/rate_result');
+        
+        $method_code = 'method_code';
+        $title = 'title';
+        $price = 100;
+        $cost = 100;
+        $method = $this->_createMethod($request, $method_code, $title, $price, $cost);
+        $result->append($method);
+        $result->append($method);
+        $result->append($method);
 
-        // Switch between domestic and international shipping methods based
-        // on destination country.
-        //if($destCountry == "AU")
-        //{
-
+        /*
         $arr_resp = $this->_drcRequest($request);
         $quote_count = ((int) $arr_resp["QUOTECOUNT"]) - 1;
 
@@ -29,15 +58,15 @@ class Codisto_Smartsend_Model_Carrier_Smartsend
             $method = $this->_createMethod($request, $x, $title, $arr_resp["QUOTE({$x})_TOTAL"], $arr_resp["QUOTE({$x})_TOTAL"]);
             $result->append($method);
         }
+        */
 
-        //}
         return $result;
     }
 
     protected function _createMethod($request, $method_code, $title, $price, $cost)
     {
         $method = Mage::getModel('shipping/rate_result_method');
-        $method->setCarrier('smartsend');
+        $method->setCarrier($this->_code);
         $method->setCarrierTitle($this->getConfigData('title'));
         $method->setMethod($method_code);
         $method->setMethodTitle($title);
@@ -236,6 +265,8 @@ class Codisto_Smartsend_Model_Carrier_Smartsend
 
     public function getAllowedMethods()
     {
+        Mage::Log("Called " . __METHOD__);
         return array('smartsend' => $this->getConfigData('name'));
     }
 }
+Mage::Log("Finished " . __FILE__);
