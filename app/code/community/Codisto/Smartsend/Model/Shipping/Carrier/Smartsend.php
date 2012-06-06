@@ -1,272 +1,255 @@
 <?php
-Mage::Log("Loaded" . __FILE__);
-
 class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     extends Mage_Shipping_Model_Carrier_Abstract
     implements Mage_Shipping_Model_Carrier_Interface
 {
-    protected $_code = 'smartsend';
-    
+
+    const CODE = 'smartsend';
     const AUSTRALIA_COUNTRY_CODE = 'AU';
 
+    protected $_code = self::CODE;
+    protected $_request = null;
+    protected $_result = null;
+    protected $_errors = array();
+    protected $_defaultGatewayURL = 'https://api.smartsend.com.au/';
+
+    protected function _createMethod($method, $title, $price, $cost)
+    {
+        $newMethod = Mage::getModel('shipping/rate_result_method');
+        $newMethod->setCarrier($this->_code);
+        $newMethod->setCarrierTitle($this->getConfigData('title'));
+        $newMethod->setMethod($method);
+        $newMethod->setMethodTitle($title);
+        $newMethod->setPrice($this->getFinalPriceWithHandlingFee($price));
+        $newMethod->setCost($cost);
+
+        return $newMethod;
+    }
+    
     public function collectRates(Mage_Shipping_Model_Rate_Request $request)
     {
-        Mage::Log("Called " . __METHOD__);
         // Check if this method is active
         if (!$this->getConfigFlag('active'))
+        {
+            Mage::Log('Shipping method ' . $this->_code . ' is not active, not collecting Rates');
             return false;
+        }
+        
+        $this->_request = $request;
+        $this->_result = Mage::getModel('shipping/rate_result');
+        
+        // TODO: Call out to freight gateway with package items to box pack and get quote results
+        // Request quotes from gateway API
+        $quotes = $this->_getQuotes();
 
+        if ($quotes == false) // No quotes returned to match return current rate results.
+            return $this->_result;
+
+        foreach ($quotes as $quote)
+        {
+            $method = 'method';
+            $title = 'title';
+            $price = 100;
+            $cost = 100;
+            $newMethod = $this->_createMethod($method, $title, $price, $cost);
+            $this->_result->append($newMethod);
+        }
+
+        return $this->_result;
+    }
+
+    protected function _getQuotes()
+    {
         // Check if this is applicable, only allowing shipping from Australia.
         $origCountry = Mage::getStoreConfig('shipping/origin/country_id', $this->getStore());
         if ($origCountry != self::AUSTRALIA_COUNTRY_CODE)
             return false;
         
-        $frompostcode = Mage::getStoreConfig('shipping/origin/postcode', $this->getStore());
-        $topostcode = $request->getDestPostcode();
-        
-        if ($request->getDestCountryId())
-            $destcountry = $request->getDestCountryId();
+        if ($this->_request->getDestCountryId())
+            $destCountry = $this->_request->getDestCountryId();
         else
-            $destcountry = self::AUSTRALIA_COUNTRY_CODE;
+            $destCountry = self::AUSTRALIA_COUNTRY_CODE;
             
         // Smartsend only ships within Australia
-        if ($destcountry != self::AUSTRALIA_COUNTRY_CODE)
+        if ($destCountry != self::AUSTRALIA_COUNTRY_CODE)
             return false;
 
-        // TODO: Call out to freight gateway with package items to box pack and get quote results
-        
-        $result = Mage::getModel('shipping/rate_result');
-        
-        $method_code = 'method_code';
-        $title = 'title';
-        $price = 100;
-        $cost = 100;
-        $method = $this->_createMethod($request, $method_code, $title, $price, $cost);
-        $result->append($method);
-        $result->append($method);
-        $result->append($method);
+        // Fill out initial Smartsend API GetQuote request parameters
+        $apiRequestParams = array(
+                                'METHOD' => 'GETQUOTE',
+                                'FROMCOUNTRYCODE' => $origCountry,
+                                'FROMPOSTCODE' => Mage::getStoreConfig('shipping/origin/postcode', $this->getStore()),
+                                'FROMSUBURB' => Mage::getStoreConfig('shipping/origin/city', $this->getStore()),
+                                'TOCOUNTRYCODE' => $destCountry,
+                                'TOPOSTCODE' => $this->_request->getDestPostcode(),
+                                'TOSUBURB' => $this->_request->getDestCity(),
+                                'SERVICETYPE' => 'ALL',
+                                'RECEIPTEDDELIVERY' => 'No',
+                                'TRANSPORTASSURANCE' => '0',
+                                'TAILLIFT' => 'None',
+                                'ITEMS' => array(),
+                                /*
+                                'ITEMS' => array(
+                                                array(
+                                                    'WEIGHT' => 'required in kgs',
+                                                    'WIDTH' => 'required in cm',
+                                                    'LENGTH' => 'required in cm',
+                                                    'DEPTH' => 'required in cm',
+                                                    'DESCRIPTION' => 'None',
+                                                ),
+                                            ),
+                                */
+                                'BOXES' => array(),
+                                /*
+                                'BOXES' => array(
+                                                array(
+                                                    'MAXWEIGHT' => 'required in kgs',
+                                                    'WIDTH' => 'required in cm',
+                                                    'LENGTH' => 'required in cm',
+                                                    'DEPTH' => 'required in cm',
+                                            ),
+                                */
+                                'USERCODE' => 'optional corporate client code',
+                            );
 
-        /*
-        $arr_resp = $this->_drcRequest($request);
-        $quote_count = ((int) $arr_resp["QUOTECOUNT"]) - 1;
-
-        # ASSIGNING VALUES TO ARRAY METHODS
-        for ($x=0; $x<=$quote_count; $x++)
+        // Fill in item entries
+        foreach ($this->_request->getAllItems() as $item)
         {
-            $title = $this->getConfigData('name') . " " .
-                        ucfirst(strtolower($arr_resp["QUOTE($x)_ESTIMATEDTRANSITTIME"])) ;
-            $method = $this->_createMethod($request, $x, $title, $arr_resp["QUOTE({$x})_TOTAL"], $arr_resp["QUOTE({$x})_TOTAL"]);
-            $result->append($method);
-        }
-        */
-
-        return $result;
-    }
-
-    protected function _createMethod($request, $method_code, $title, $price, $cost)
-    {
-        $method = Mage::getModel('shipping/rate_result_method');
-        $method->setCarrier($this->_code);
-        $method->setCarrierTitle($this->getConfigData('title'));
-        $method->setMethod($method_code);
-        $method->setMethodTitle($title);
-        $method->setPrice($this->getFinalPriceWithHandlingFee($price));
-        $method->setCost($cost);
-
-        return $method;
-    }
-
-    protected function _drcRequest($service)
-    {
-        // Check if this method is even applicable (shipping from Australia)
-        $db = Mage::getSingleton('core/resource')->getConnection('core_write');
-
-        $origCountry = Mage::getStoreConfig('shipping/origin/country_id', $this->getStore());
-        if ($origCountry != "AU") 
-            return false;
-
-        // TODO: Add some more validations
-        $path_smartsend = "carriers/smartsend/";
-
-        //$frompcode = Mage::getStoreConfig('shipping/origin/postcode', $this->getStore());
-        //$fromsuburb = Mage::getStoreConfig('shipping/origin/city', $this->getStore());
-
-        $frompcode = Mage::getStoreConfig($path_smartsend.'post_code', $this->getStore());
-        $fromsuburb = Mage::getStoreConfig($path_smartsend.'suburban', $this->getStore());
-
-        $topcode = $service->getDestPostcode();
-        $tosuburb = $service->getDestCity();
-
-        Mage::Log($frompcode);
-        Mage::Log($fromsuburb);
-
-        if ($service->getDestCountryId())
-            $destCountry = $service->getDestCountryId();
-        else
-            $destCountry = "AU";
-
-        // Here we get the weight (and convert it to grams) and set some
-        // sensible defaults for other shipping parameters.	
-
-        $weight = (int)$service->getPackageWeight();
-
-        $height = $width = $length = 100;
-        $shipping_num_boxes = 1;
-        $Description = "CARTON";
-        $post_url = "http://api.smartsend.com.au/";
-
-        //$result = $db->query("SELECT depth,length,height,description,taillift FROM 'smartsend_products'");
-
-        $post_param_values["METHOD"]                = "GetQuote";
-        $post_param_values["FROMCOUNTRYCODE"]       = $origCountry;
-        $post_param_values["FROMPOSTCODE"]          = $frompcode; //"2000";
-        $post_param_values["FROMSUBURB"]            = $fromsuburb; //"SYDNEY";
-        $post_param_values["TOCOUNTRYCODE"]         = $destCountry;
-        $post_param_values["TOPOSTCODE"]            = $topcode;
-        $post_param_values["TOSUBURB"]              = $tosuburb;
-
-        # tail lift - init    
-        $taillift = array();
-        $key = 0;
-
-        $freeBoxes = 0;
-        if ($service->getAllItems())
-        {
-            foreach ($service->getAllItems() as $item)
+            if($item->getProduct()->isVirtual() || $item->getParentItem())
             {
-                /* fetching the values of lenght,weight,height,description in smartsend_products table */
-                $prod_id = $item->getProduct()->getId();
-
-                if ($item->getProduct()->isVirtual() || $item->getParentItem())
-                    continue;
-
-                if ($item->getHasChildren() && $item->isShipSeparately())
-                {
-                    foreach ($item->getChildren() as $child)
-                    {
-                        if ($child->getFreeShipping() && !$child->getProduct()->isVirtual())
-                            $freeBoxes += $item->getQty() * $child->getQty();
-                    }
-                }
-                else if ($item->getFreeShipping())
-                {
-                    $freeBoxes += $item->getQty();
-                }
-
-                $prod_id    = $item->getProduct()->getId();
-                $result     = $db->query('Select * from `smartsend_products` where id='."'".$prod_id."'");
-                $rows       = $result->fetch(PDO::FETCH_ASSOC);
-
-                if($rows)
-                {
-                    $post_value_items["ITEM({$key})_HEIGHT"]         =  $rows['height'];
-                    $post_value_items["ITEM({$key})_LENGTH"]         =  $rows['length'];
-                    $post_value_items["ITEM({$key})_DEPTH"]          =  $rows['depth'];
-                    $post_value_items["ITEM({$key})_WEIGHT"]         =  $weight;
-                    $post_value_items["ITEM({$key})_DESCRIPTION"]    =  $rows['description'];
-                }
-                else
-                {
-                    /* default values */
-                    $post_value_items["ITEM({$key})_HEIGHT"]         =  1;
-                    $post_value_items["ITEM({$key})_LENGTH"]         =  1;
-                    $post_value_items["ITEM({$key})_DEPTH"]          =  1;
-                    $post_value_items["ITEM({$key})_WEIGHT"]         =  $weight;
-                    $post_value_items["ITEM({$key})_DESCRIPTION"]    =  'none';
-                }
-
-                # tail lift - assigns value
-                switch($rows['taillift'])
-                {
-                    case 'none':
-                        $taillift[] = "none";break;
-                    case 'atpickup':
-                        $taillift[] = "atpickup";break;
-                    case 'atdestination':
-                        $taillift[] = "atdestination";break;
-                    case 'both':
-                        $taillift[] = "both";break;
-                }
-                $key++;
+                Mage::Log("Product is virtual or has parent Item, skipping. (file: " . __FILE__ . ", ln: " .  __LINE__ . ")");
+                continue;
             }
+
+            // TODO: Check for free shipping on products and don't count them in the items to query for SmartSend quote
+            $productId = $item->getProduct()->getId();
+            $itemProperties = array(
+                                    'WEIGHT' => 1,
+                                    'WIDTH' => 1,
+                                    'LENGTH' => 1,
+                                    'DEPTH' => 1,
+                                    'DESCRIPTION' => 'CARTON',
+                                );
+            $apiRequestParams['ITEMS'][] = $itemProperties;
         }
-
-        $this->setFreeBoxes($freeBoxes);
-
-        /*
-        $post_value_items["ITEM({$key})_HEIGHT"]         =  $height;
-        $post_value_items["ITEM({$key})_LENGTH"]         =  $length;
-        $post_value_items["ITEM({$key})_DEPTH"]          =  $width;
-        $post_value_items["ITEM({$key})_WEIGHT"]         =  $width;
-        $post_value_items["ITEM({$key})_DESCRIPTION"]    =  $Description;
-        */
-        # tail lift - choose appropriate value
-
-        $post_param_values["TAILLIFT"] = "none";
-
-        if (in_array("none",  $taillift))
-            $post_param_values["TAILLIFT"]      = "none";
-        if (in_array("atpickup",  $taillift))
-            $post_param_values["TAILLIFT"]      = "atpickup";
-        if (in_array("atdestination",  $taillift))
-            $post_param_values["TAILLIFT"]      = "atdestination";
-        if (in_array("atpickup",  $taillift) && in_array("atdestination",  $taillift))
-            $post_param_values["TAILLIFT"]      = "both";
-        if (in_array("both",  $taillift))
-            $post_param_values["TAILLIFT"]      = "both";
-
-        $post_final_values = array_merge($post_param_values,$post_value_items);
-
-        # POST PARAMETER AND ITEMS VALUE URLENCODE
-
-        $post_string = "";
-
-        foreach( $post_final_values as $key => $value )
-        { 
-            $post_string .= "$key=" . urlencode( $value ) . "&";
-        }
-        $post_string = rtrim( $post_string, "& " );
-
-        if ($service->getFreeShipping() === true || $service->getPackageQty() == $this->getFreeBoxes())
+        
+        $apiRequestString = "";
+        foreach ($apiRequestParams as $paramKey => $paramValue)
         {
-            $shippingPrice = '0.00';
+            if($paramKey == "ITEMS" || $paramKey == "BOXES")
+            {
+                for($i = 0; $i < count($paramValue); $i++)
+                {
+                    $apiRequestString .= rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_WEIGHT") . "=" . rawurlencode($paramValue[$i]['WEIGHT']) . "&"
+                                        . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_WIDTH") . "=" . rawurlencode($paramValue[$i]['WIDTH']) . "&"
+                                        . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_LENGTH") . "=" . rawurlencode($paramValue[$i]['LENGTH']) . "&"
+                                        . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_DEPTH") . "=" . rawurlencode($paramValue[$i]['DEPTH']) . "&"
+                                        . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_DESCRIPTION") . "=" . rawurlencode($paramValue[$i]['DESCRIPTION']) . "&";
+                }
+            }
+            else
+                $apiRequestString .= rawurlencode($paramKey) . "=" . rawurlencode($paramValue) . "&";
+        }
+        Mage::Log("API Request String is '" . $apiRequestString . "'");
 
-
-            $arr_resp['ACK'] = 'Success';
-            $arr_resp['QUOTE(0)_TOTAL'] = $shippingPrice;
-            $arr_resp['QUOTE(0)_ESTIMATEDTRANSITTIME'] = 'Fixed';
-            $arr_resp['QUOTECOUNT'] = 1;
-
+        // Perform Smartsend API request
+        $apiRequest = curl_init();
+        if($apiRequest == false)
+        {
+            Mage::Log("Failed to initialise cURL to perform smartsend API request");
+            return false;
         }
         else
         {
-            # START CURL PROCESS
-
-            $request = curl_init($post_url); 
-            curl_setopt($request, CURLOPT_HEADER, 0); 
-            curl_setopt($request, CURLOPT_RETURNTRANSFER, 1); 
-            curl_setopt($request, CURLOPT_POSTFIELDS, $post_string);
-            curl_setopt($request, CURLOPT_SSL_VERIFYPEER, FALSE);
-            $post_response = curl_exec($request); 
-            curl_close ($request); // close curl object    
-
-            # parse output
-            parse_str($post_response, $arr_resp);
+            curl_setopt_array($apiRequest, array(
+                                                CURLOPT_URL => $this->_defaultGatewayURL,
+                                                CURLOPT_HEADER => 0,
+                                                CURLOPT_RETURNTRANSFER => 1,
+                                                CURLOPT_POSTFIELDS => $apiRequestString,
+                                                CURLOPT_SSL_VERIFYPEER => false,
+                                            ));
+            $apiResponse = curl_exec($apiRequest);
+            $quotes = false;
+            if($apiResponse != false)
+            {
+                $quotes = array();
+                Mage::Log("API Request Response: " . var_export($apiResponse, true));
+                parse_str($apiResponse, $apiResult);
+                Mage::Log("API Result Array: " . var_export($apiResult, true));
+            }
+            curl_close ($apiRequest);
+            return $quotes;
         }
-
-        return $arr_resp;
     }
 
-    /**
-    * Get allowed shipping methods
-    *
-    * @return array
-    */
+    public function getCode($type, $code = '')
+    {
+        static $codes;
+        $codes = array(
+            'tailliftbooking' => array(
+                'None' => Mage::helper('smartsend')->__('None'),
+                'AtPickup' => Mage::helper('smartsend')->__('At Pickup'),
+                'AtDestination' => Mage::helper('smartsend')->__('At Destination'),
+                'Both' => Mage::helper('smartsend')->__('Both'),
+            ),
+            'servicetype' => array(
+                'all' => Mage::helper('smartsend')->__('All'),
+                'satchel' => Mage::helper('smartsend')->__('Satchel'),
+                'road' => Mage::helper('smartsend')->__('Road'),
+                'express' => Mage::helper('smartsend')->__('Express'),
+            ),
+        );
 
+        if (!isset($codes[$type])) {
+            return false;
+        } elseif ('' === $code) {
+            return $codes[$type];
+        }
+
+        if (!isset($codes[$type][$code])) {
+            return false;
+        } else {
+            return $codes[$type][$code];
+        }
+    }
+    
     public function getAllowedMethods()
     {
-        Mage::Log("Called " . __METHOD__);
-        return array('smartsend' => $this->getConfigData('name'));
+        return null;
+        
+        $allowed = explode(',', $this->getConfigData('allowed_methods'));
+        $arr = array();
+        foreach ($allowed as $k)
+            $arr[$k] = $this->getCode('service', $k);
+        
+        return $arr;
+    }
+    
+    public function isCityRequired()
+    {
+        return true;
+    }
+    
+    public function isZipCodeRequired()
+    {
+        return true;
+    }
+    
+    public function isStateProvinceRequired()
+    {
+        return true;
+    }
+    
+    public function isShippingLabelsAvailable()
+    {
+        return true;
+    }
+    
+    public function getTracking($trackings)
+    {
+    }
+    
+    protected function setTrackingRequest()
+    {
     }
 }
-Mage::Log("Finished " . __FILE__);

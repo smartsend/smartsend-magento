@@ -1,4 +1,5 @@
 <?php
+Mage::Log(__FILE__);
 $installer = $this;
 $installer->startSetup();
 $installer->run("
