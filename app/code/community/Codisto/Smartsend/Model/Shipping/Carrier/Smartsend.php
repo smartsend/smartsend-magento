@@ -13,14 +13,14 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     protected $_errors = array();
     protected $_defaultGatewayURL = 'https://api.smartsend.com.au/';
 
-    protected function _createMethod($method, $title, $price, $cost)
+    protected function _createMethod($method, $title, $cost)
     {
         $newMethod = Mage::getModel('shipping/rate_result_method');
         $newMethod->setCarrier($this->_code);
         $newMethod->setCarrierTitle($this->getConfigData('title'));
         $newMethod->setMethod($method);
         $newMethod->setMethodTitle($title);
-        $newMethod->setPrice($this->getFinalPriceWithHandlingFee($price));
+        $newMethod->setPrice($this->getFinalPriceWithHandlingFee($cost));
         $newMethod->setCost($cost);
 
         return $newMethod;
@@ -31,7 +31,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
         // Check if this method is active
         if (!$this->getConfigFlag('active'))
         {
-            Mage::Log('Shipping method ' . $this->_code . ' is not active, not collecting Rates');
+            Mage::Log('Shipping method ' . $this->_code . ' is not active, not collecting rates');
             return false;
         }
         
@@ -47,12 +47,8 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
 
         foreach ($quotes as $quote)
         {
-            $method = 'method';
-            $title = 'title';
-            $price = 100;
-            $cost = 100;
-            $newMethod = $this->_createMethod($method, $title, $price, $cost);
-            $this->_result->append($newMethod);
+            $method = $this->_createMethod($quote["method"], $quote["title"], $quote["cost"]);
+            $this->_result->append($method);
         }
 
         return $this->_result;
@@ -83,10 +79,10 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
                                 'TOCOUNTRYCODE' => $destCountry,
                                 'TOPOSTCODE' => $this->_request->getDestPostcode(),
                                 'TOSUBURB' => $this->_request->getDestCity(),
-                                'SERVICETYPE' => 'ALL',
-                                'RECEIPTEDDELIVERY' => 'No',
-                                'TRANSPORTASSURANCE' => '0',
-                                'TAILLIFT' => 'None',
+                                'SERVICETYPE' => $this->getConfigData('allowed_servicetypes'),
+                                'RECEIPTEDDELIVERY' => $this->getConfigData('receipted_delivery'),
+                                'TRANSPORTASSURANCE' => '0', // TODO: Determine whether this should be customer or merchant choice - affects cost
+                                'TAILLIFT' => $this->getConfigData('taillift_booking'),
                                 'ITEMS' => array(),
                                 /*
                                 'ITEMS' => array(
@@ -109,7 +105,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
                                                     'DEPTH' => 'required in cm',
                                             ),
                                 */
-                                'USERCODE' => 'optional corporate client code',
+                                'USERCODE' => $this->getConfigData('corporate_client_code'),
                             );
 
         // Fill in item entries
@@ -150,7 +146,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
             else
                 $apiRequestString .= rawurlencode($paramKey) . "=" . rawurlencode($paramValue) . "&";
         }
-        Mage::Log("API Request String is '" . $apiRequestString . "'");
+//        Mage::Log("API Request String is '" . $apiRequestString . "'");
 
         // Perform Smartsend API request
         $apiRequest = curl_init();
@@ -172,10 +168,32 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
             $quotes = false;
             if($apiResponse != false)
             {
-                $quotes = array();
-                Mage::Log("API Request Response: " . var_export($apiResponse, true));
                 parse_str($apiResponse, $apiResult);
-                Mage::Log("API Result Array: " . var_export($apiResult, true));
+                if(strtoupper($apiResult["ACK"]) == "SUCCESS")
+                {
+                    $quotes = array();
+                    for($i = 0; $i < $apiResult["QUOTECOUNT"]; $i++)
+                    {
+                        $service = $apiResult["QUOTE(" . $i . ")_SERVICE"];
+                        $estTransitTime = $apiResult["QUOTE(" . $i . ")_ESTIMATEDTRANSITTIME"];
+                        $total = $apiResult["QUOTE(" . $i . ")_TOTAL"];
+                        
+                        $quote = array(
+                                        'method' => $service,
+                                        'title' => ($estTransitTime != "" ? $service . " (" . $estTransitTime . ")" : $service),
+                                        'cost' => $total,
+                                    );
+                        $quotes[] = $quote;
+                    }
+                }
+                elseif(strtoupper($apiResult["ACK"]) == "FAILED")
+                {
+                    Mage::Log("Smartsend request failed, raw response received: " . var_export($apiResult, true));
+                }
+                else
+                {
+                    Mage::Log("Unknown response received from Smartsend API request, raw response received: " . var_export($apiResult, true));
+                }
             }
             curl_close ($apiRequest);
             return $quotes;
@@ -215,8 +233,6 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     
     public function getAllowedMethods()
     {
-        return null;
-        
         $allowed = explode(',', $this->getConfigData('allowed_methods'));
         $arr = array();
         foreach ($allowed as $k)

@@ -10,4 +10,13 @@ class Codisto_Smartsend_Block_Cart_Shipping
         else
             return parent::getCityActive();
     }
+    
+    public function getStateActive()
+    {
+        $smartsend = Mage::getSingleton('smartsend/shipping_carrier_smartsend');
+        if($smartsend->getConfigFlag('active'))
+            return true;
+        else
+            return parent::getStateActive();
+    }
 }
