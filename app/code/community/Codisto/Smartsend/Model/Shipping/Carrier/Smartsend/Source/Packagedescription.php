@@ -1,7 +1,7 @@
 <?php
 Mage::Log(__FILE__);
 
-class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend_Source_Tailliftbooking
+class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend_Source_Packagedescription
     extends Mage_Eav_Model_Entity_Attribute_Source_Abstract
 {
     public function getAllOptions()
@@ -24,7 +24,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend_Source_Tailliftbooking
     {
         $smartsend = Mage::getSingleton('smartsend/shipping_carrier_smartsend');
         $arr = array();
-        foreach ($smartsend->getCode('tailliftbooking') as $k => $v)
+        foreach ($smartsend->getCode('packagedescription') as $k => $v)
             $arr[] = array('value' => $k, 'label' => $v);
 
         return $arr;

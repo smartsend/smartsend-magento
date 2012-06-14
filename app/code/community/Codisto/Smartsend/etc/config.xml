@@ -50,9 +50,34 @@
             <smartsend_setup>
                 <setup>
                     <module>Codisto_Smartsend</module>
+                    <class>Codisto_Smartsend_Model_Resource_Eav_Mysql4_Setup</class>
                 </setup>
+                <connection>
+                    <use>core_setup</use>
+                </connection>
             </smartsend_setup>
+            <smartsend_write>
+                <connection>
+                    <use>core_write</use>
+                </connection>
+            </smartsend_write>
+            <smartsend_read>
+                <connection>
+                    <use>core_read</use>
+                </connection>
+            </smartsend_read>
         </resources>
+        <events>
+            <controller_front_init_routers>
+                <observers>
+                    <codisto_smartsend_model_observer>
+                        <type>singleton</type>
+                        <class>Codisto_Smartsend_Model_Observer</class>
+                        <method>checkForConfigRequest</method>
+                    </codisto_smartsend_model_observer>
+                </observers>
+            </controller_front_init_routers>
+        </events>
         <sales>
             <shipping>
                 <carriers>
@@ -88,17 +113,29 @@
     <default>
         <carriers>
             <smartsend>
-                <active>0</active>
+                <active>1</active>
                 <title>Smartsend</title>
                 <name>Smartsend</name>
                 <corporate_client_code></corporate_client_code>
                 <receipted_delivery>false</receipted_delivery>
                 <taillift_booking>None</taillift_booking>
                 <allowed_servicetypes>All</allowed_servicetypes>
+                <showmethod>0</showmethod>
                 <specificerrmsg>Smartsend is only available when shipping within Australia. Please contact us if you are having shipping issues.</specificerrmsg>
-                <default_length>0</default_length>
-                <default_width>0</default_width>
-                <default_height>0</default_height>
+                <handling_type>F</handling_type>
+                <handling_action>O</handling_action>
+                <handling_fee>0</handling_fee>
+                <receipteddelivery>Request receipt</receipteddelivery>
+                <taillift_booking>None</taillift_booking>
+                <default_package_description>Carton</default_package_description>
+                <default_measurement_unit>Centimetres</default_measurement_unit>
+                <default_weight_unit>Kilograms</default_weight_unit>
+                <default_weight>1</default_weight>
+                <default_length>1</default_length>
+                <default_width>1</default_width>
+                <default_height>1</default_height>
+                <sort_order></sort_order>
+                <debug>N</debug>
                 <model>smartsend/Shipping_Carrier_Smartsend</model>
             </smartsend>
         </carriers>
