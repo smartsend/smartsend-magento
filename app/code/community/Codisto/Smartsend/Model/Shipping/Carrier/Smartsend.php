@@ -33,6 +33,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
 
     public function collectRates(Mage_Shipping_Model_Rate_Request $request)
     {
+        Mage::Log(__METHOD__);
         // Check if this method is active
         if (!$this->getConfigFlag('active'))
         {
@@ -137,15 +138,23 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
             }
 
             // TODO: Check for free shipping on products and don't count them in the items to query for SmartSend quote
-            $productId = $item->getProduct()->getId();
-            $itemProperties = array(
-                                    'WEIGHT' => 1,
-                                    'WIDTH' => 1,
-                                    'LENGTH' => 1,
-                                    'DEPTH' => 1,
-                                    'DESCRIPTION' => 'CARTON',
-                                );
-            $apiRequestParams['ITEMS'][] = $itemProperties;
+            $product = Mage::getModel('catalog/product')->load($item->getProductId());
+            
+            // TODO: Handle the decimal quantity case - check if it only affects grouped/bundled products, since we should be tearing those product types
+            // apart anyway and dealing with the individual products within them.
+            // Look in Mage_Sales_Model_Quote_Item
+            for($i = 0; $i < $item->getQty(); $i++)
+            {
+                $itemProperties = array(
+                                        'WEIGHT' => $product->getSmartsendWeight(),
+                                        'WIDTH' => $product->getSmartsendWidth(),
+                                        'LENGTH' => $product->getSmartsendLength(),
+                                        'DEPTH' => $product->getSmartsendHeight(),
+                                        'DESCRIPTION' => strtoupper($product->getSmartsendPackageDescription()),
+                                        'TAILLIFTBOOKING' => $product->getSmartsendTailliftBooking(),
+                                    );
+                $apiRequestParams['ITEMS'][] = $itemProperties;
+            }
         }
         
         $apiRequestString = "";
@@ -165,7 +174,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
             else
                 $apiRequestString .= rawurlencode($paramKey) . "=" . rawurlencode($paramValue) . "&";
         }
-//        Mage::Log("API Request String is '" . $apiRequestString . "'");
+        Mage::Log("API Request String is '" . $apiRequestString . "'");
 
         // Perform Smartsend API request
         $apiRequest = curl_init();
@@ -223,13 +232,13 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     {
         static $codes;
         $codes = array(
-            'measurementunit' => array(
+            'measurement_unit' => array(
                 'Centimetres' => Mage::helper('smartsend')->__('Centimetres'),
                 'Metres' => Mage::helper('smartsend')->__('Metres'),
                 'Feet' => Mage::helper('smartsend')->__('Feet'),
                 'Yards' => Mage::helper('smartsend')->__('Yards'),
             ),
-            'packagedescription' => array(
+            'package_description' => array(
                 'Envelope' => Mage::helper('smartsend')->__('Envelope'),
                 'Carton' => Mage::helper('smartsend')->__('Carton'),
                 'Satchel / Bag' => Mage::helper('smartsend')->__('Satchel / Bag'),
@@ -243,25 +252,25 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
                 'Tyre / Wheel' => Mage::helper('smartsend')->__('Tyre / Wheel'),
                 'Furniture / Bedding' => Mage::helper('smartsend')->__('Furniture / Bedding'),
             ),
-            'receipteddelivery' => array(
+            'receipted_delivery' => array(
                 'Always require receipt' => Mage::helper('smartsend')->__('Always require receipt'),
                 'Request receipt' => Mage::helper('smartsend')->__('Request receipt'),
                 'No receipt' => Mage::helper('smartsend')->__('No receipt'),
                 'Never require receipt' => Mage::helper('smartsend')->__('Never require receipt'),
             ),
-            'servicetype' => array(
+            'service_type' => array(
                 'All' => Mage::helper('smartsend')->__('All'),
                 'Satchel' => Mage::helper('smartsend')->__('Satchel'),
                 'Road' => Mage::helper('smartsend')->__('Road'),
                 'Express' => Mage::helper('smartsend')->__('Express'),
             ),
-            'tailliftbooking' => array(
+            'taillift_booking' => array(
                 'None' => Mage::helper('smartsend')->__('None'),
-                'At Pickup' => Mage::helper('smartsend')->__('At Pickup'),
-                'At Destination' => Mage::helper('smartsend')->__('At Destination'),
+                'AtPickup' => Mage::helper('smartsend')->__('At Pickup'),
+                'AtDestination' => Mage::helper('smartsend')->__('At Destination'),
                 'Both' => Mage::helper('smartsend')->__('Both'),
             ),
-            'weightunit' => array(
+            'weight_unit' => array(
                 'Kilograms' => Mage::helper('smartsend')->__('Kilograms'),
                 'Grams' => Mage::helper('smartsend')->__('Grams'),
                 'Pounds' => Mage::helper('smartsend')->__('Pounds'),

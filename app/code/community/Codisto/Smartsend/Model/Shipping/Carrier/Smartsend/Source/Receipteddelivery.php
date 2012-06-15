@@ -5,7 +5,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend_Source_Receipteddeliver
     {
         $smartsend = Mage::getSingleton('smartsend/shipping_carrier_smartsend');
         $arr = array();
-        foreach ($smartsend->getCode('receipteddelivery') as $k => $v)
+        foreach ($smartsend->getCode('receipted_delivery') as $k => $v)
             $arr[] = array('value' => $k, 'label' => $v);
 
         return $arr;

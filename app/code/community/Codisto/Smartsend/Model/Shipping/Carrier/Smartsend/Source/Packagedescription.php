@@ -16,15 +16,15 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend_Source_Packagedescripti
 
     public function getOptionText($optionId)
     {
-        $options = self::toOptionArray();
-        return isset($options[$optionId]) ? $options[$optionId] : null;
+        $options = Mage::getSingleton('smartsend/shipping_carrier_smartsend')->getCode('package_description');
+        return isset($options[$optionId]) ? $optionId : null;
     }
 
     public function toOptionArray()
     {
         $smartsend = Mage::getSingleton('smartsend/shipping_carrier_smartsend');
         $arr = array();
-        foreach ($smartsend->getCode('packagedescription') as $k => $v)
+        foreach ($smartsend->getCode('package_description') as $k => $v)
             $arr[] = array('value' => $k, 'label' => $v);
 
         return $arr;

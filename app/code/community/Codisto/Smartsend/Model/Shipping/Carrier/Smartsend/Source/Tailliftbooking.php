@@ -16,15 +16,15 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend_Source_Tailliftbooking
 
     public function getOptionText($optionId)
     {
-        $options = self::toOptionArray();
-        return isset($options[$optionId]) ? $options[$optionId] : null;
+        $options = Mage::getSingleton('smartsend/shipping_carrier_smartsend')->getCode('taillift_booking');
+        return isset($options[$optionId]) ? $optionId : null;
     }
 
     public function toOptionArray()
     {
         $smartsend = Mage::getSingleton('smartsend/shipping_carrier_smartsend');
         $arr = array();
-        foreach ($smartsend->getCode('tailliftbooking') as $k => $v)
+        foreach ($smartsend->getCode('taillift_booking') as $k => $v)
             $arr[] = array('value' => $k, 'label' => $v);
 
         return $arr;

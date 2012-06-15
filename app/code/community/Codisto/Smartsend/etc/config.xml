@@ -113,7 +113,7 @@
     <default>
         <carriers>
             <smartsend>
-                <active>1</active>
+                <active>0</active>
                 <title>Smartsend</title>
                 <name>Smartsend</name>
                 <corporate_client_code></corporate_client_code>
