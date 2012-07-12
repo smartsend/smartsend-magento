@@ -1,4 +1,5 @@
 <?php
+Mage::Log(__FILE__);
 class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     extends Mage_Shipping_Model_Carrier_Abstract
     implements Mage_Shipping_Model_Carrier_Interface
@@ -7,14 +8,17 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     const CODE = 'smartsend';
     const AUSTRALIA_COUNTRY_CODE = 'AU';
 
+	public $GatewayURL = 'https://api.dev.smartsend.com.au/';
+
     protected $_code = self::CODE;
     protected $_request = null;
     protected $_result = null;
     protected $_errors = array();
-    protected $_defaultGatewayURL = 'https://api.smartsend.com.au/';
+
 
     protected function _createMethod($method, $title, $cost)
     {
+		Mage::Log(__METHOD__);
         $newMethod = Mage::getModel('shipping/rate_result_method');
         $newMethod->setCarrier($this->_code);
         $newMethod->setCarrierTitle($this->getConfigData('title'));
@@ -28,12 +32,14 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
 
     public function getCarrierCode()
     {
+		Mage::Log(__METHOD__);
         return $this->_code;
     }
 
     public function collectRates(Mage_Shipping_Model_Rate_Request $request)
     {
         Mage::Log(__METHOD__);
+		
         // Check if this method is active
         if (!$this->getConfigFlag('active'))
         {
@@ -50,6 +56,16 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
 
         if ($quotes == false) // No quotes returned to match return current rate results.
             return $this->_result;
+            
+        if ($quotes instanceof Mage_Shipping_Model_Rate_Result_Error)
+        {
+            Mage::Log('An error has been returned from _getQuotes call');
+            
+            // An error has been returned, pass it up.
+            
+            $this->_result = $quotes;
+            return $this->_result;
+        }
 
         foreach ($quotes as $quote)
         {
@@ -69,13 +85,13 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     
     public function requestToShipment(Mage_Shipping_Model_Shipment_Request $request)
     {
-        Mage::Log("Smartsend requestToShipment called");
-        
+		Mage::Log(__METHOD__);
         return false;
     }
 
     protected function _getQuotes()
     {
+		Mage::Log(__METHOD__);
         // Check if this is applicable, only allowing shipping from Australia.
         $origCountry = Mage::getStoreConfig('shipping/origin/country_id', $this->getStore());
         if ($origCountry != self::AUSTRALIA_COUNTRY_CODE)
@@ -110,8 +126,8 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
                                                     'WEIGHT' => 'required in kgs',
                                                     'WIDTH' => 'required in cm',
                                                     'LENGTH' => 'required in cm',
-                                                    'DEPTH' => 'required in cm',
-                                                    'DESCRIPTION' => 'None',
+                                                    'HEIGHT' => 'required in cm',
+                                                    'DESCRIPTION' => 'CARTON',
                                                 ),
                                             ),
                                 */
@@ -119,44 +135,111 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
                                 /*
                                 'BOXES' => array(
                                                 array(
-                                                    'MAXWEIGHT' => 'required in kgs',
+                                                    'WEIGHT' => 'max weight required in kgs',
                                                     'WIDTH' => 'required in cm',
                                                     'LENGTH' => 'required in cm',
-                                                    'DEPTH' => 'required in cm',
+                                                    'HEIGHT' => 'required in cm',
                                             ),
                                 */
                                 'USERCODE' => $this->getConfigData('corporate_client_code'),
                             );
 
-        // Fill in item entries
+        // Fill in item entries, getAllItems() will returns sub products of bundled products.
         foreach ($this->_request->getAllItems() as $item)
         {
-            if($item->getProduct()->isVirtual() || $item->getParentItem())
-            {
-                Mage::Log("Product is virtual or has parent Item, skipping. (file: " . __FILE__ . ", ln: " .  __LINE__ . ")");
-                continue;
-            }
+            // We can only calculate freight on non-virtual Simple and Grouped items, as they will have Smartsend freight dimensions and weight.
+            /*
+                Values for debugging purposes
+            Mage::Log("Item Name: " . $item->getName());
+            Mage::Log("Item Qty: " . $item->getQty());
+            Mage::Log("IsVirtual: " . $item->getProduct()->isVirtual());
+            Mage::Log("HasParent: " . ($item->getParentItem() != null));
+            Mage::Log("Parent Qty: " . ($item->getParentItem() != null ? $item->getParentItem()->getQty() : "n/a"));
+            */
 
-            // TODO: Check for free shipping on products and don't count them in the items to query for SmartSend quote
+            if($item->getProduct()->isVirtual() ||
+                ($item->getProductType() != 'simple' && $item->getProductType() != 'grouped'))
+                continue;
+
             $product = Mage::getModel('catalog/product')->load($item->getProductId());
-            
-            // TODO: Handle the decimal quantity case - check if it only affects grouped/bundled products, since we should be tearing those product types
-            // apart anyway and dealing with the individual products within them.
-            // Look in Mage_Sales_Model_Quote_Item
-            for($i = 0; $i < $item->getQty(); $i++)
+            $measurementUnit = $this->getConfigData('default_measurement_unit');
+            $weightUnit = $this->getConfigData('default_weight_unit');
+
+            for($i = 0; $i < ($item->getParentItem() == null ? 1 : $item->getParentItem()->getQty()); $i++)
             {
+                // TODO: Check for free shipping on products and don't count them in the items to query for SmartSend quote
+                $weight = $product->getSmartsendWeight();
+                $width = $product->getSmartsendWidth();
+                $length = $product->getSmartsendLength();
+                $height = $product->getSmartsendHeight();
+                $description = $product->getSmartsendPackageDescription();
+                $tailliftbooking = $product->getSmartsendProductBooking();
+
                 $itemProperties = array(
-                                        'WEIGHT' => $product->getSmartsendWeight(),
-                                        'WIDTH' => $product->getSmartsendWidth(),
-                                        'LENGTH' => $product->getSmartsendLength(),
-                                        'DEPTH' => $product->getSmartsendHeight(),
-                                        'DESCRIPTION' => strtoupper($product->getSmartsendPackageDescription()),
-                                        'TAILLIFTBOOKING' => $product->getSmartsendTailliftBooking(),
+                                        'WEIGHT' => $weight == null ? $this->getConfigData('default_weight') : $weight,
+                                        'WIDTH' => $width == null ? $this->getConfigData('default_width') : $width,
+                                        'LENGTH' => $length == null ? $this->getConfigData('default_length') : $length,
+                                        'HEIGHT' => $height == null ? $this->getConfigData('default_height') : $height,
+                                        'DESCRIPTION' => strtoupper($description == null ? $this->getConfigData('default_package_description') : $description),
+                                        'QTY' => $item->getQty(),
+                                        'TAILLIFT' => $tailliftbooking == null ? $this->getConfigData('taillift_booking') : $tailliftbooking,
                                     );
+                // Convert measurement and weight units to Smartsend's centimetres and kilograms
+
+                switch($measurementUnit)
+                {
+                    case 'Centimetres': break;
+                    case 'Metres': // 1 m = 100 cm
+                        $itemProperties['WIDTH'] *= 100.0;
+                        $itemProperties['LENGTH'] *= 100.0;
+                        $itemProperties['HEIGHT'] *= 100.0;
+                        break;
+                    case 'Inches': // 1 in = 2.54 cm
+                        $itemProperties['WIDTH'] *= 2.54;
+                        $itemProperties['LENGTH'] *= 2.54;
+                        $itemProperties['HEIGHT'] *= 2.54;
+                        break;
+                    case 'Feet': // 1 ft = 30.48 cm
+                        $itemProperties['WIDTH'] *= 30.48;
+                        $itemProperties['LENGTH'] *= 30.48;
+                        $itemProperties['HEIGHT'] *= 30.48;
+                        break;
+                    case 'Yards': // 1 yd = 91.44 cm
+                        $itemProperties['WIDTH'] *= 91.44;
+                        $itemProperties['LENGTH'] *= 91.44;
+                        $itemProperties['HEIGHT'] *= 91.44;
+                        break;
+                    default: break;
+                }
+
+                switch($weightUnit)
+                {
+                    case 'Grams': // 1 gm = 0.001 kg
+                        $itemProperties['WEIGHT'] *= 0.001;
+                        break;
+                    case 'Kilograms': break;
+                    case 'Pounds': // 1 lb = 0.45359237 gm
+                        $itemProperties['WEIGHT'] *= 0.45359237;
+                        break;
+                    case 'Ounces': // 1 oz = 0.0283495231
+                        $itemProperties['WEIGHT'] *= 0.0283495231;
+                        break;
+                    default: break;
+                }
+
+                // Check whether we should update taillift booking status
+                if($apiRequestParams['TAILLIFT'] != $itemProperties['TAILLIFT'] &&
+                    $apiRequestParams['TAILLIFT'] != 'Both')
+                {
+                    if($apiRequestParams['TAILLIFT'] == 'None' || $apiRequestParams['TAILLIFT'] == null)
+                        $apiRequestParams['TAILLIFT'] = $itemProperties['TAILLIFT'];
+                    else
+                        $apiRequestParams['TAILLIFT'] = 'Both';
+                }
                 $apiRequestParams['ITEMS'][] = $itemProperties;
             }
         }
-        
+
         $apiRequestString = "";
         foreach ($apiRequestParams as $paramKey => $paramValue)
         {
@@ -164,11 +247,12 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
             {
                 for($i = 0; $i < count($paramValue); $i++)
                 {
-                    $apiRequestString .= rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_WEIGHT") . "=" . rawurlencode($paramValue[$i]['WEIGHT']) . "&"
+                    $apiRequestString .= rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_" . ($paramKey == "BOXES" ? "MAX" : "") . "WEIGHT") . "=" . rawurlencode($paramValue[$i]['WEIGHT']) . "&"
                                         . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_WIDTH") . "=" . rawurlencode($paramValue[$i]['WIDTH']) . "&"
                                         . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_LENGTH") . "=" . rawurlencode($paramValue[$i]['LENGTH']) . "&"
-                                        . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_DEPTH") . "=" . rawurlencode($paramValue[$i]['DEPTH']) . "&"
-                                        . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_DESCRIPTION") . "=" . rawurlencode($paramValue[$i]['DESCRIPTION']) . "&";
+                                        . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_HEIGHT") . "=" . rawurlencode($paramValue[$i]['HEIGHT']) . "&"
+                                        . rawurlencode(($paramKey == "ITEMS" ? "ITEM(" : "BOX(") . $i . ")_DESCRIPTION") . "=" . rawurlencode($paramValue[$i]['DESCRIPTION']) . "&"
+                                        . ($paramKey == "ITEMS" ? rawurlencode("ITEM(" . $i . ")_QTY") . "=" . rawurlencode($paramValue[$i]['QTY']) . "&" : "");
                 }
             }
             else
@@ -186,7 +270,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
         else
         {
             curl_setopt_array($apiRequest, array(
-                                                CURLOPT_URL => $this->_defaultGatewayURL,
+                                                CURLOPT_URL => $this->GatewayURL,
                                                 CURLOPT_HEADER => 0,
                                                 CURLOPT_RETURNTRANSFER => 1,
                                                 CURLOPT_POSTFIELDS => $apiRequestString,
@@ -197,6 +281,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
             if($apiResponse != false)
             {
                 parse_str($apiResponse, $apiResult);
+                Mage::Log("API Response: " . var_export($apiResult, true));
                 if(strtoupper($apiResult["ACK"]) == "SUCCESS")
                 {
                     $quotes = array();
@@ -230,11 +315,13 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
 
     public function getCode($type, $code = '')
     {
+		Mage::Log(__METHOD__);
         static $codes;
         $codes = array(
             'measurement_unit' => array(
                 'Centimetres' => Mage::helper('smartsend')->__('Centimetres'),
                 'Metres' => Mage::helper('smartsend')->__('Metres'),
+                'Inches' => Mage::helper('smartsend')->__('Inches'),
                 'Feet' => Mage::helper('smartsend')->__('Feet'),
                 'Yards' => Mage::helper('smartsend')->__('Yards'),
             ),
@@ -293,6 +380,7 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     
     public function getAllowedMethods()
     {
+		Mage::Log(__METHOD__);
         $allowed = explode(',', $this->getConfigData('allowed_methods'));
         $arr = array();
         foreach ($allowed as $k)
@@ -303,31 +391,44 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
 
     public function isCityRequired()
     {
+		Mage::Log(__METHOD__);
         return true;
     }
     
     public function isZipCodeRequired()
     {
+		Mage::Log(__METHOD__);
         return true;
     }
     
     public function isStateProvinceRequired()
     {
+		Mage::Log(__METHOD__);
         return true;
     }
     
     public function isShippingLabelsAvailable()
     {
-        return true;
+		Mage::Log(__METHOD__);
+        return false;
     }
     
     public function isTrackingAvailable()
     {
+		Mage::Log(__METHOD__);
         return true;
     }
+	
+	/* Get tracking response - returns string */
+	public function getResponse()
+	{
+		Mage::Log(__METHOD__);
+		return '';
+	}
     
     public function getTrackingInfo($tracking)
     {
+		Mage::Log(__METHOD__);
         $info = array();
         $result = $this->getTracking($tracking);
         
@@ -346,9 +447,12 @@ class Codisto_Smartsend_Model_Shipping_Carrier_Smartsend
     
     public function getTracking($trackings)
     {
+		Mage::Log(__METHOD__);
+		return null;
     }
     
     protected function setTrackingRequest()
     {
+		Mage::Log(__METHOD__);
     }
 }

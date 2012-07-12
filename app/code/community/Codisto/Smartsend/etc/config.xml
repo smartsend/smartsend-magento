@@ -20,7 +20,7 @@
  */
  -->
  <config>
-    <modules>
+    <modules>Yeh 
         <Codisto_Smartsend>
             <version>0.1.0</version>
         </Codisto_Smartsend>
@@ -68,6 +68,25 @@
             </smartsend_read>
         </resources>
         <events>
+			<sales_order_shipment_save_before>
+				<observers>
+					<codisto_smartsend_model_shipping_carrier_smartsend_observer>
+						<type>singleton</type>
+						<class>Codisto_Smartsend_Model_Shipping_Carrier_Smartsend_Observer</class>
+						<method>doSmartsendSalesOrderShipmentSaveBefore</method>
+					</codisto_smartsend_model_shipping_carrier_smartsend_observer>
+				</observers>
+			</sales_order_shipment_save_before>
+			<sales_order_shipment_save_after>
+				<observers>
+					<codisto_smartsend_model_shipping_carrier_smartsend_observer>
+						<type>singleton</type>
+						<class>Codisto_Smartsend_Model_Shipping_Carrier_Smartsend_Observer</class>
+						<method>doSmartsendSalesOrderShipmentSaveAfter</method>
+					</codisto_smartsend_model_shipping_carrier_smartsend_observer>
+				</observers>
+			</sales_order_shipment_save_after>
+			<!--
             <controller_front_init_routers>
                 <observers>
                     <codisto_smartsend_model_observer>
@@ -77,6 +96,7 @@
                     </codisto_smartsend_model_observer>
                 </observers>
             </controller_front_init_routers>
+			-->
         </events>
         <sales>
             <shipping>
@@ -89,6 +109,15 @@
         </sales>
     </global>
     <frontend>
+		<routers>
+			<smartsend>
+				<use>standard</use>
+				<args>
+					<module>Codisto_Smartsend</module>
+					<frontName>smartsend</frontName>
+				</args>
+			</smartsend>
+		</routers>
         <translate>
             <modules>
                 <Codisto_Smartsend>
